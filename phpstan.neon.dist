@@ -1,0 +1,10 @@
+parameters:
+	level: 8
+	paths:
+		- khseo.php
+		- uninstall.php
+		- src
+		- config
+	bootstrapFiles:
+		- tools/phpstan-constants.php
+	treatPhpDocTypesAsCertain: false

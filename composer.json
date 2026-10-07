@@ -1,0 +1,40 @@
+{
+	"name": "kamrul5242/khseo-wordpress",
+	"description": "KHSEO WordPress — evidence-first, security-first SEO plugin. AI optional.",
+	"type": "wordpress-plugin",
+	"license": "GPL-2.0-or-later",
+	"homepage": "https://github.com/Kamrul5242/khseo-wordpress",
+	"require": {
+		"php": ">=8.1",
+		"ext-sodium": "*"
+	},
+	"require-dev": {
+		"phpunit/phpunit": "^10.5",
+		"squizlabs/php_codesniffer": "^3.10",
+		"wp-coding-standards/wpcs": "^3.1",
+		"phpcompatibility/phpcompatibility-wp": "^2.1",
+		"phpstan/phpstan": "^2.1",
+		"szepeviktor/phpstan-wordpress": "^2.0",
+		"phpstan/extension-installer": "^1.4"
+	},
+	"autoload-dev": {
+		"psr-4": {
+			"KHSEO\\Tests\\": "tests/"
+		}
+	},
+	"config": {
+		"sort-packages": true,
+		"platform": {
+			"php": "8.1.0"
+		},
+		"allow-plugins": {
+			"dealerdirect/phpcodesniffer-composer-installer": true,
+			"phpstan/extension-installer": true
+		}
+	},
+	"scripts": {
+		"test": "phpunit",
+		"lint": "phpcs",
+		"analyse": "phpstan analyse --memory-limit=1G"
+	}
+}

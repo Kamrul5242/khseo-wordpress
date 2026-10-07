@@ -1,0 +1,20 @@
+/* KHSEO admin — loaded only on KHSEO screens. Uses WordPress admin colours. */
+.khseo .khseo-lede { max-width: 60em; color: #50575e; }
+.khseo .khseo-table { max-width: 70em; }
+.khseo .khseo-table td { vertical-align: top; }
+.khseo .khseo-label {
+	display: inline-block;
+	padding: 0 6px;
+	border: 1px solid #8c8f94;
+	border-radius: 3px;
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: .02em;
+	color: #1d2327;
+	background: #f6f7f7;
+}
+.khseo .khseo-list li { margin-bottom: 6px; }
+.khseo .khseo-meta { color: #50575e; }
+@media (prefers-reduced-motion: reduce) {
+	.khseo * { transition: none !important; animation: none !important; }
+}
