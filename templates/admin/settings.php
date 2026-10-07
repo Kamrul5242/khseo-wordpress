@@ -103,6 +103,25 @@ $khseo_select = static function ( string $name, string $value, array $options ) 
 			</tr>
 		</table>
 
+		<h2><?php esc_html_e( 'Audit limits', 'khseo' ); ?></h2>
+		<p class="description"><?php esc_html_e( 'Audits only fetch pages on this site and stop at these limits. Each value has a hard maximum.', 'khseo' ); ?></p>
+		<table class="form-table" role="presentation">
+			<?php
+			$khseo_limits = array(
+				'audit_max_pages'         => __( 'Maximum pages per audit', 'khseo' ),
+				'audit_max_sitemap_files' => __( 'Maximum sitemap files read', 'khseo' ),
+				'audit_max_total_mb'      => __( 'Maximum download per audit (MB)', 'khseo' ),
+			);
+			foreach ( $khseo_limits as $khseo_key => $khseo_label ) :
+				[ $khseo_min, $khseo_max ] = Settings::AUDIT_BOUNDS[ $khseo_key ];
+				?>
+				<tr>
+					<th scope="row"><label for="khseo-<?php echo esc_attr( $khseo_key ); ?>"><?php echo esc_html( $khseo_label ); ?></label></th>
+					<td><input type="number" id="khseo-<?php echo esc_attr( $khseo_key ); ?>" name="<?php echo esc_attr( $khseo_opt ); ?>[<?php echo esc_attr( $khseo_key ); ?>]" min="<?php echo esc_attr( (string) $khseo_min ); ?>" max="<?php echo esc_attr( (string) $khseo_max ); ?>" value="<?php echo esc_attr( (string) $settings[ $khseo_key ] ); ?>" class="small-text"> <span class="description"><?php echo esc_html( $khseo_min . '–' . $khseo_max ); ?></span></td>
+				</tr>
+			<?php endforeach; ?>
+		</table>
+
 		<h2><?php esc_html_e( 'AI (optional)', 'khseo' ); ?></h2>
 		<p><?php esc_html_e( 'KHSEO works fully without AI. When enabled, only the minimum content needed for a task is sent, and only after you start that task.', 'khseo' ); ?></p>
 		<p class="description"><?php esc_html_e( 'AI features are not built yet in this version. These settings are stored now and will be used when the AI layer arrives. Nothing is sent to any AI provider today.', 'khseo' ); ?></p>

@@ -36,6 +36,21 @@
 		<exclude name="WordPress.NamingConventions.ValidVariableName.PropertyNotSnakeCase"/>
 	</rule>
 
+	<rule ref="WordPress.WP.Capabilities">
+		<properties>
+			<property name="custom_capabilities" type="array">
+				<element value="view_khseo"/>
+				<element value="run_khseo_audit"/>
+				<element value="edit_khseo"/>
+				<element value="manage_khseo"/>
+				<element value="manage_khseo_settings"/>
+				<element value="manage_khseo_ai"/>
+				<element value="manage_khseo_integrations"/>
+				<element value="rollback_khseo_changes"/>
+			</property>
+		</properties>
+	</rule>
+
 	<rule ref="WordPress.WP.I18n">
 		<properties>
 			<property name="text_domain" type="array">

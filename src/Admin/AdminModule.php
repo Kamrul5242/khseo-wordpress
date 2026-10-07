@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace KHSEO\Admin;
 
+use KHSEO\Audit\AuditRunner;
 use KHSEO\Audit\StatusReport;
 use KHSEO\Core\Container;
 use KHSEO\Core\Module;
@@ -41,6 +42,13 @@ final class AdminModule implements Module {
 	private array $screens = array();
 
 	/**
+	 * Audit, issue and fix screens.
+	 *
+	 * @var AuditScreens|null
+	 */
+	private ?AuditScreens $audit_screens = null;
+
+	/**
 	 * Module id.
 	 */
 	public function id(): string {
@@ -65,6 +73,8 @@ final class AdminModule implements Module {
 		add_action( 'admin_enqueue_scripts', array( $this, 'assets' ) );
 		add_action( 'admin_post_' . self::SECRET_ACTION, array( $this, 'saveAiKey' ) );
 		add_filter( 'option_page_capability_' . Settings::OPTION, static fn (): string => Capabilities::SETTINGS );
+		$this->audit_screens = new AuditScreens( $container );
+		$this->audit_screens->register();
 	}
 
 	/**
@@ -81,6 +91,7 @@ final class AdminModule implements Module {
 			81
 		);
 		$this->screens[] = (string) add_submenu_page( self::SLUG, __( 'Overview', 'khseo' ), __( 'Overview', 'khseo' ), Capabilities::VIEW, self::SLUG, array( $this, 'renderOverview' ) );
+		$this->screens[] = (string) add_submenu_page( self::SLUG, __( 'Issues', 'khseo' ), __( 'Issues', 'khseo' ), Capabilities::VIEW, AuditScreens::ISSUES_SLUG, array( $this, 'renderIssues' ) );
 		$this->screens[] = (string) add_submenu_page( self::SLUG, __( 'Settings', 'khseo' ), __( 'Settings', 'khseo' ), Capabilities::SETTINGS, self::SETTINGS_SLUG, array( $this, 'renderSettings' ) );
 	}
 
@@ -94,6 +105,26 @@ final class AdminModule implements Module {
 			return;
 		}
 		wp_enqueue_style( 'khseo-admin', KHSEO_URL . 'assets/css/admin.css', array(), KHSEO_VERSION );
+		$job = AuditRunner::job();
+		if ( $hook_suffix === $this->screens[0] && null !== $job && 'running' === $job['status'] && current_user_can( Capabilities::RUN_AUDIT ) ) {
+			// Steps the running audit via REST (cookie auth + wp_rest nonce). No secrets are passed to JS.
+			wp_enqueue_script( 'khseo-admin', KHSEO_URL . 'assets/js/admin.js', array(), KHSEO_VERSION, true );
+			wp_localize_script(
+				'khseo-admin',
+				'khseoAdmin',
+				array(
+					'stepUrl' => esc_url_raw( rest_url( 'khseo/v1/audit/step' ) ),
+					'nonce'   => wp_create_nonce( 'wp_rest' ),
+				)
+			);
+		}
+	}
+
+	/**
+	 * Issues screen.
+	 */
+	public function renderIssues(): void {
+		( $this->audit_screens ?? new AuditScreens( $this->container ) )->renderIssues();
 	}
 
 	/**
@@ -104,7 +135,16 @@ final class AdminModule implements Module {
 			wp_die( esc_html__( 'You do not have permission to view KHSEO.', 'khseo' ), 403 );
 		}
 		$report = StatusReport::build( $this->container );
-		View::render( 'overview', array( 'report' => $report ) );
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only message from our own redirect.
+		$notice = isset( $_GET['khseo_msg'] ) ? sanitize_text_field( wp_unslash( $_GET['khseo_msg'] ) ) : '';
+		View::render(
+			'overview',
+			array(
+				'report'    => $report,
+				'notice'    => $notice,
+				'can_audit' => current_user_can( Capabilities::RUN_AUDIT ),
+			)
+		);
 	}
 
 	/**

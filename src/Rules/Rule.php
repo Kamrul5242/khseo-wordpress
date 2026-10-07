@@ -22,13 +22,20 @@ final class Rule {
 	public const ID_PATTERN = '/^SEO-[A-Z0-9]+-\d{3}$/';
 
 	/**
+	 * Categories; each one is a KHSEO Score category.
+	 */
+	public const CATEGORIES = array( 'crawlability', 'indexability', 'technical', 'metadata', 'content', 'links', 'images', 'structured_data', 'social' );
+
+	/**
 	 * Build and validate a rule.
 	 *
 	 * @param string   $id             e.g. SEO-TITLE-001.
 	 * @param string   $category       Category slug, e.g. metadata.
 	 * @param Severity $severity       P0–P3.
 	 * @param string   $condition      Plain-language trigger.
-	 * @param Evidence $evidence       How the condition is established.
+	 * @param Evidence $evidence_requirement Strongest evidence a check of this rule can produce
+	 *                                       (a rule definition never says the CURRENT site was verified;
+	 *                                       only a runtime RuleResult does).
 	 * @param string   $recommendation What the user should do.
 	 * @param bool     $auto_fixable   Whether a Safe Fix exists.
 	 * @param Risk     $risk           Risk of the fix.
@@ -41,7 +48,7 @@ final class Rule {
 		public readonly string $category,
 		public readonly Severity $severity,
 		public readonly string $condition,
-		public readonly Evidence $evidence,
+		public readonly Evidence $evidence_requirement,
 		public readonly string $recommendation,
 		public readonly bool $auto_fixable,
 		public readonly Risk $risk,
@@ -53,6 +60,13 @@ final class Rule {
 		}
 		if ( '' === trim( $category ) || '' === trim( $condition ) || '' === trim( $recommendation ) ) {
 			throw new InvalidArgumentException( 'Rule ' . $id . ' is missing category, condition or recommendation.' );
+		}
+		if ( ! in_array( $category, self::CATEGORIES, true ) ) {
+			throw new InvalidArgumentException( 'Rule ' . $id . ' has an unknown category.' );
+		}
+		// A check can only ever establish a fact or an inference; UNKNOWN/NOT TESTED are runtime outcomes.
+		if ( ! in_array( $evidence_requirement, array( Evidence::VERIFIED, Evidence::OBSERVED, Evidence::INFERRED ), true ) ) {
+			throw new InvalidArgumentException( 'Rule ' . $id . ' has an invalid evidence requirement.' );
 		}
 		// A fix that cannot be undone must never be applied automatically.
 		if ( $auto_fixable && ! $reversible ) {
@@ -71,7 +85,7 @@ final class Rule {
 	 * @throws InvalidArgumentException When a key is missing or invalid.
 	 */
 	public static function fromArray( array $row ): self {
-		foreach ( array( 'id', 'category', 'severity', 'condition', 'evidence', 'recommendation', 'auto_fixable', 'risk', 'reversible' ) as $key ) {
+		foreach ( array( 'id', 'category', 'severity', 'condition', 'evidence_requirement', 'recommendation', 'auto_fixable', 'risk', 'reversible' ) as $key ) {
 			if ( ! array_key_exists( $key, $row ) ) {
 				throw new InvalidArgumentException( 'Rule definition missing key: ' . $key );
 			}
@@ -81,7 +95,7 @@ final class Rule {
 			(string) $row['category'],
 			Severity::from( (string) $row['severity'] ),
 			(string) $row['condition'],
-			Evidence::from( (string) $row['evidence'] ),
+			Evidence::from( (string) $row['evidence_requirement'] ),
 			(string) $row['recommendation'],
 			(bool) $row['auto_fixable'],
 			Risk::from( (string) $row['risk'] ),

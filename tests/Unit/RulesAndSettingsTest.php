@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace KHSEO\Tests\Unit;
 
 use InvalidArgumentException;
+use KHSEO\Audit\RuleResult;
 use KHSEO\Audit\SiteChecks;
 use KHSEO\Rules\Rule;
 use KHSEO\Rules\RuleRegistry;
@@ -31,10 +32,10 @@ final class RulesAndSettingsTest extends TestCase {
 	private function row(): array {
 		return array(
 			'id'             => 'SEO-TEST-001',
-			'category'       => 'test',
+			'category'       => 'technical',
 			'severity'       => 'P2',
 			'condition'      => 'x',
-			'evidence'       => 'VERIFIED',
+			'evidence_requirement' => 'VERIFIED',
 			'recommendation' => 'y',
 			'auto_fixable'   => false,
 			'risk'           => 'R2',
@@ -71,7 +72,7 @@ final class RulesAndSettingsTest extends TestCase {
 
 	public function test_bad_ids_and_labels_are_rejected(): void {
 		$this->expectException( \ValueError::class );
-		Rule::fromArray( array_merge( $this->row(), array( 'evidence' => 'PROBABLY' ) ) );
+		Rule::fromArray( array_merge( $this->row(), array( 'evidence_requirement' => 'PROBABLY' ) ) );
 	}
 
 	public function test_risk_semantics(): void {
@@ -129,25 +130,25 @@ final class RulesAndSettingsTest extends TestCase {
 	}
 
 	public function test_site_checks_report_real_state_with_evidence(): void {
-		$checks = new SiteChecks( RuleRegistry::fromFile( self::RULES_FILE ) );
+		$checks = new SiteChecks();
 
 		$bad = $checks->run( false, 'http://example.com', 'http://example.com' );
 		$this->assertCount( 2, $bad );
 		foreach ( $bad as $finding ) {
-			$this->assertFalse( $finding->passed );
+			$this->assertSame( RuleResult::FAIL, $finding->status );
 			$this->assertSame( Evidence::VERIFIED, $finding->evidence );
 			$this->assertSame( SiteChecks::SOURCE, $finding->source );
 		}
 
 		$good = $checks->run( true, 'https://example.com', 'https://example.com' );
-		$this->assertTrue( $good[0]->passed && $good[1]->passed );
-		$this->assertSame( '', $good[0]->toArray()['recommendation'] );
+		$this->assertSame( array( RuleResult::PASS, RuleResult::PASS ), array( $good[0]->status, $good[1]->status ) );
+		$this->assertSame( RuleResult::SITE, $good[0]->url );
 	}
 
 	public function test_mixed_https_is_a_failure(): void {
-		$checks   = new SiteChecks( RuleRegistry::fromFile( self::RULES_FILE ) );
+		$checks   = new SiteChecks();
 		$findings = $checks->run( true, 'https://example.com', 'http://example.com' );
-		$this->assertFalse( $findings[1]->passed );
+		$this->assertSame( RuleResult::FAIL, $findings[1]->status );
 	}
 
 	public function test_log_prune_drops_old_and_caps_size(): void {

@@ -71,14 +71,41 @@ final class UrlGuard {
 	private array $ports;
 
 	/**
+	 * Trusted origins ("scheme://host:port"), normally only this site's own home/site URL.
+	 *
+	 * @var array<int, string>
+	 */
+	private array $trusted_origins;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param callable|null   $resolver Resolver returning IPs for a host; defaults to system DNS.
-	 * @param array<int, int> $ports    Allowed ports.
+	 * @param callable|null      $resolver Resolver returning IPs for a host; defaults to system DNS.
+	 * @param array<int, int>    $ports           Allowed ports.
+	 * @param array<int, string> $trusted_origins Exact origins exempt from the private-address rules
+	 *                                            (this site, which may live on a private network).
+	 *                                            Scheme, credential and control-character checks still apply,
+	 *                                            the connection is still pinned, and every redirect is re-checked.
 	 */
-	public function __construct( ?callable $resolver = null, array $ports = array( 80, 443 ) ) {
-		$this->resolver = $resolver ?? array( self::class, 'systemResolve' );
-		$this->ports    = $ports;
+	public function __construct( ?callable $resolver = null, array $ports = array( 80, 443 ), array $trusted_origins = array() ) {
+		$this->resolver        = $resolver ?? array( self::class, 'systemResolve' );
+		$this->ports           = $ports;
+		$this->trusted_origins = array_values( array_filter( array_map( array( self::class, 'origin' ), $trusted_origins ) ) );
+	}
+
+	/**
+	 * Normalised origin "scheme://host:port" of a URL, or '' if it has none.
+	 *
+	 * @param string $url URL.
+	 */
+	public static function origin( string $url ): string {
+		$p = parse_url( $url ); // phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- pure class.
+		if ( false === $p || empty( $p['scheme'] ) || empty( $p['host'] ) ) {
+			return '';
+		}
+		$scheme = strtolower( $p['scheme'] );
+		$port   = isset( $p['port'] ) ? (int) $p['port'] : ( 'https' === $scheme ? 443 : 80 );
+		return $scheme . '://' . rtrim( strtolower( trim( $p['host'], '[]' ) ), '.' ) . ':' . $port;
 	}
 
 	/**
@@ -102,6 +129,9 @@ final class UrlGuard {
 			return UrlCheck::deny( 'URLs with embedded credentials are not allowed.' );
 		}
 		$port = isset( $parts['port'] ) ? (int) $parts['port'] : ( 'https' === $scheme ? 443 : 80 );
+		if ( in_array( self::origin( $url ), $this->trusted_origins, true ) ) {
+			return $this->checkTrusted( $scheme, $parts['host'], $port );
+		}
 		if ( ! in_array( $port, $this->ports, true ) ) {
 			return UrlCheck::deny( 'Port ' . $port . ' is not allowed.' );
 		}
@@ -135,6 +165,26 @@ final class UrlGuard {
 			}
 		}
 		return UrlCheck::allow( $scheme, $host, $port, array_values( $ips ) );
+	}
+
+	/**
+	 * Resolve a trusted origin (hosts file included, e.g. "localhost" or a Docker service name).
+	 *
+	 * @param string $scheme Scheme.
+	 * @param string $raw    Host as parsed.
+	 * @param int    $port   Port.
+	 */
+	private function checkTrusted( string $scheme, string $raw, int $port ): UrlCheck {
+		$host = rtrim( strtolower( trim( $raw, '[]' ) ), '.' );
+		if ( false !== filter_var( $host, FILTER_VALIDATE_IP ) ) {
+			return UrlCheck::allow( $scheme, $host, $port, array( $host ) );
+		}
+		$ips = ( $this->resolver )( $host );
+		if ( array() === $ips && function_exists( 'gethostbynamel' ) ) {
+			$resolved = gethostbynamel( $host );
+			$ips      = false === $resolved ? array() : $resolved;
+		}
+		return array() === $ips ? UrlCheck::deny( 'This site\'s own host did not resolve.' ) : UrlCheck::allow( $scheme, $host, $port, array_values( $ips ) );
 	}
 
 	/**

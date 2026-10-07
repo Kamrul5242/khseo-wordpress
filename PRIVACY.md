@@ -2,18 +2,28 @@
 
 KHSEO collects the minimum data needed and has **no telemetry**.
 
-## What version 0.1.x stores
+## What version 0.2.x stores
 
 | Data | Where | Why |
 |---|---|---|
 | Plugin settings | `wp_options` → `khseo_settings` | Your configuration |
-| Optional AI API key | `wp_options` → `khseo_secrets` (encrypted) | Future AI features |
-| Log entries | `wp_options` → `khseo_log` (capped at 200 entries and your retention setting, 14 days by default) | Troubleshooting and security events; secrets are redacted |
+| Optional AI API key | `wp_options` → `khseo_secrets` (encrypted) | Future AI features (PLANNED) |
+| Log entries | `wp_options` → `khseo_log` (max 200 entries and your retention setting; one line each; secrets redacted) | Troubleshooting and security events |
+| Audit findings | table `{prefix}khseo_issues` | Issues found on your pages: URL, rule, observation (e.g. "No meta description"). Resolved rows are pruned after 30 days; the table is capped at 20,000 rows |
+| Last audit summary and current audit job | `wp_options` → `khseo_last_audit`, `khseo_audit_job` | Score, scope and coverage; job progress |
+| Change journal and approvals | `wp_options` → `khseo_change_journal` (max 100), `khseo_fix_approvals` (expire after 1 hour) | Before/after values of fixes, for rollback |
 
-## What version 0.1.x sends anywhere
+Findings contain page data (titles, descriptions, URLs) from **your own site**,
+not visitor data. Only users with KHSEO capabilities can read them.
 
-**Nothing.** No KHSEO feature makes external requests. The Safe Fetcher exists
-for future features, but nothing in the plugin calls it yet.
+## What version 0.2.x requests over the network
+
+- **Audits fetch pages of this site only**: its home page, `/robots.txt`, its XML
+  sitemaps and the pages listed there (up to the limits in Settings). These requests go
+  to your own site's address through KHSEO's SSRF-protected fetcher. KHSEO refuses to
+  audit any other host.
+- **Nothing is sent to any third party.** There is no AI provider, analytics, Google
+  API or tracking call.
 
 ## Future optional features
 
@@ -26,4 +36,10 @@ such feature ships.
 ## Removing your data
 
 Tick **KHSEO → Settings → Delete all KHSEO data when the plugin is deleted**,
-then delete the plugin. Without that setting, your data is kept.
+then delete the plugin. That removes:
+- the options listed above;
+- the findings table;
+- the capabilities;
+- the scheduled audit events.
+
+Without that setting, your data is kept.

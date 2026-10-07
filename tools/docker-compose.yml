@@ -25,6 +25,15 @@ services:
         condition: service_healthy
     ports:
       - "127.0.0.1:8089:80"
+    # Apache also listens on 8089 INSIDE the container, so the site's own URL
+    # (http://localhost:8089) is reachable when KHSEO audits itself from PHP.
+    command:
+      - bash
+      - -c
+      - >-
+        echo 'Listen 8089' >> /etc/apache2/ports.conf &&
+        sed -i 's/<VirtualHost \*:80>/<VirtualHost *:80 *:8089>/' /etc/apache2/sites-enabled/000-default.conf &&
+        exec docker-entrypoint.sh apache2-foreground
     environment:
       WORDPRESS_DB_HOST: db
       WORDPRESS_DB_USER: wordpress

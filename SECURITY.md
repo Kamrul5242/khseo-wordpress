@@ -26,7 +26,12 @@ Full details are in [docs/ARCHITECTURE.md §5](docs/ARCHITECTURE.md#5-security-m
   - the connection is pinned to the validated IP (DNS rebinding);
   - every redirect is re-validated;
   - time, size, content type and decompression are limited.
-- Changes are allowed only through the R0–R4 change gate.
+- Audits fetch only this site's own origin. Sitemaps are parsed without DOCTYPE/entity
+  support (XXE), and every list and download is capped.
+- Changes are allowed only through the R0–R4 change gate, after approval of that exact
+  change and a recovery point. Rollback refuses to overwrite later edits.
+- Page content, JSON-LD, robots.txt and sitemaps are untrusted data. They are escaped on
+  output and never executed or followed as instructions.
 - Secrets are encrypted at rest with libsodium and never rendered, logged,
   exported or sent to JavaScript.
 - Logs are redacted and size-capped.

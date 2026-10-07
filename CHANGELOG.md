@@ -11,6 +11,88 @@ All notable changes to KHSEO WordPress. The format follows
 `VERSION`, the plugin header, `KHSEO_VERSION`, `readme.txt` (Stable tag) and the
 newest entry below must match; a unit test enforces this.
 
+## [0.2.0] — 2026-10-07
+
+Phase 1 final hardening and Phase 2A/2B/2C: the first working SEO audit.
+MINOR version: new backwards-compatible features. Every feature below has unit and/or
+real-WordPress integration tests.
+
+### Phase 1 final
+- Rules now declare an `evidence_requirement`. Only a runtime `RuleResult` says what was
+  measured on this site, and it cannot carry evidence that contradicts its status
+  (e.g. NOT TESTED + VERIFIED is rejected).
+- `SafeFetcher`:
+  - RFC 3986 redirect resolution (`../`, `./`, query-only, fragment, protocol-relative);
+  - HTTPS → HTTP downgrades refused after the full guard check;
+  - redirects carrying credentials are never silently rebuilt without them.
+- `UrlGuard`: optional trusted origins, the exact scheme+host+port of this site only, so
+  KHSEO can audit itself on a private network. Credentials and control characters are
+  still refused, the connection is still pinned, and redirects away are re-checked.
+- Logger strips terminal escape sequences (ANSI/OSC); the redactor masks secret query
+  parameters (`code`, `access_token`, `sig`, `api_key`, …).
+- Status reports encryption strength: dedicated, standard, degraded (database salt) or unavailable.
+- Migrations: a failed step no longer advances the version.
+
+### Phase 2A — technical SEO engine
+- Bounded HTML parser: libxml, no network, never runs JavaScript, 2 MB parse cap, legacy
+  charsets converted. Each page is parsed once into a `PageSnapshot`.
+- Checks:
+  - HTTP status, redirects, content type, HTTPS;
+  - robots meta and X-Robots-Tag (including googlebot-scoped values);
+  - canonical (missing, multiple, relative, cross-host, mismatch, noindex conflict,
+    http on https, target status within scope);
+  - title and meta description (missing, empty, multiple, length in characters, markup,
+    duplicates within scope);
+  - headings (H1, skipped levels, empty), `lang`, charset;
+  - images (alt, decorative alt, width/height);
+  - links (empty text, internal links, broken targets only when fetched in this audit).
+- robots.txt parser with universal KHSEO / RFC 9309 semantics. XML sitemap parser that refuses DOCTYPE/ENTITY (XXE).
+- `AuditRunner`:
+  - scopes: homepage, one URL on this site, or a sitemap sample;
+  - hard limits on pages, sitemap files and total bytes;
+  - resumable steps with a lock, driven by WP-Cron or the dashboard.
+
+### Phase 2B — social metadata and structured data
+- Open Graph (missing core tags, conflicting values, relative URLs) and Twitter/X cards.
+- JSON-LD parser with depth and entity caps; validation of context and type, required
+  properties for 12 common types, conflicting `@id`, unknown types, url/sameAs URLs.
+- INFERRED visible-content checks: the name or headline must appear on the page, and rating
+  or review markup needs visible review text.
+- Google Rich Results Test: NOT TESTED.
+
+### Phase 2C — findings, score, fixes, UI and API
+- Findings table `{prefix}khseo_issues` (migration v3, per-site):
+  - deterministic finding keys;
+  - "ignored" survives re-audits, and stale findings resolve;
+  - bounded growth (30-day pruning of resolved rows, 20,000-row cap).
+- KHSEO Score: deterministic, documented formula with weighted categories and a P0 cap at
+  49. Unknown and not-tested checks are excluded and shown as coverage. Labelled as
+  "not a Google ranking score".
+- Safe fixes: preview → approval of that exact change → recovery point (journal) →
+  `ChangeGate` → apply → validate → rollback (blocked if the value changed since). The
+  first fix covers search-engine visibility (SEO-INDEX-001, R3).
+- REST:
+  - `GET /status`;
+  - `GET|POST /audit`, `POST /audit/step`, `POST /audit/cancel`;
+  - `GET /issues` (filters, pagination), `GET /issues/{id}`, `POST /issues/{id}/status`;
+  - `POST /fixes/preview|approve|apply|rollback`.
+- Admin:
+  - Overview with score, scope, coverage and audit controls (works without JavaScript);
+  - Issues list with filters;
+  - issue detail with before/after diff and the change journal;
+  - audit limits in Settings.
+- Detection of other SEO plugins (Yoast, Rank Math, AIOSEO, SEOPress, The SEO Framework,
+  Slim SEO, Squirrly). KHSEO outputs no metadata (PLANNED).
+
+### Tests
+- 128 unit tests.
+- 138 real-WordPress integration checks:
+  - full sitemap audit, governed fix with rollback;
+  - XSS escaping, SQL-injection inertness;
+  - REST and admin permissions, locking, multisite.
+- Mutation-checked: evidence spoofing, score manipulation, unsafe auto-fix, credential
+  redirect, ChangeGate bypass, secret leak, SQL injection.
+
 ## [0.1.1] — 2026-10-07
 
 Phase 1 hardening, from a full audit of 0.1.0. Each fix has a regression test.

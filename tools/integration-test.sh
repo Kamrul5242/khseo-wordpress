@@ -30,7 +30,7 @@ rm -f wp-content/debug.log
 # --- Activation -------------------------------------------------------------
 wp plugin activate khseo >/dev/null 2>&1
 check "plugin activates" "active" "$(wp plugin get khseo --field=status)"
-check "db version recorded" "2" "$(wp option get khseo_db_version)"
+check "db version recorded" "3" "$(wp option get khseo_db_version)"
 check "settings seeded, AI off by default" "none" "$(wp eval 'echo get_option("khseo_settings")["ai_provider"];')"
 check "admin has manage_khseo_ai" "1" "$(wp eval 'echo (int) get_role("administrator")->has_cap("manage_khseo_ai");')"
 check "editor has view_khseo" "1" "$(wp eval 'echo (int) get_role("editor")->has_cap("view_khseo");')"
@@ -145,6 +145,10 @@ fi
 check "HTTP: editor cannot open the Settings screen" "403" "$(curl -s $CURL_TO -o /dev/null -w '%{http_code}' -b $EDITOR_JAR "$BASE/wp-admin/admin.php?page=khseo-settings")"
 check "HTTP: editor can open the Overview screen" "200" "$(curl -s $CURL_TO -o /dev/null -w '%{http_code}' -b $EDITOR_JAR "$BASE/wp-admin/admin.php?page=khseo")"
 
+# --- Phase 2: audits, findings, score, fixes (separate file) ---------------
+# shellcheck source=/dev/null
+. /plugin/tools/integration-phase2.inc.sh
+
 # --- No PHP notices/warnings from KHSEO -------------------------------------
 if [ -f wp-content/debug.log ] && grep -qi "khseo" wp-content/debug.log; then
 	fail "debug.log has KHSEO notices:"; grep -i khseo wp-content/debug.log | head -5
@@ -165,6 +169,7 @@ wp eval 'define( "WP_UNINSTALL_PLUGIN", "khseo/khseo.php" ); include WP_PLUGIN_D
 check "opted-in uninstall deletes settings" "0" "$(wp eval 'echo (int) ( false !== get_option("khseo_settings") );')"
 check "opted-in uninstall deletes secrets" "0" "$(wp eval 'echo (int) ( false !== get_option("khseo_secrets") );')"
 check "opted-in uninstall removes caps" "0" "$(wp eval 'echo (int) get_role("administrator")->has_cap("view_khseo");')"
+check "opted-in uninstall drops the findings table" "" "$(wp db query "SHOW TABLES LIKE 'wp_khseo_issues'" --skip-column-names)"
 
 # --- Multisite ---------------------------------------------------------------
 if wp core multisite-convert --title="KHSEO Network" >/dev/null 2>&1; then

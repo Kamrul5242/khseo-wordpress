@@ -38,6 +38,18 @@ final class Settings {
 		'ai_max_output_tokens'     => 800,
 		'ai_privacy_mode'          => true,
 		'ai_send_content'          => false,
+		'audit_max_pages'          => 25,
+		'audit_max_sitemap_files'  => 5,
+		'audit_max_total_mb'       => 20,
+	);
+
+	/**
+	 * Hard upper bounds for audit limits; no setting can exceed them.
+	 */
+	public const AUDIT_BOUNDS = array(
+		'audit_max_pages'         => array( 1, 200 ),
+		'audit_max_sitemap_files' => array( 1, 20 ),
+		'audit_max_total_mb'      => array( 1, 100 ),
 	);
 
 	/**
@@ -78,6 +90,9 @@ final class Settings {
 
 		$out['log_retention_days']   = self::intInRange( $input, 'log_retention_days', 1, 90, $current );
 		$out['ai_max_output_tokens'] = self::intInRange( $input, 'ai_max_output_tokens', 64, 8192, $current );
+		foreach ( self::AUDIT_BOUNDS as $key => [ $min, $max ] ) {
+			$out[ $key ] = self::intInRange( $input, $key, $min, $max, $current );
+		}
 
 		if ( array_key_exists( 'ai_temperature', $input ) && is_numeric( $input['ai_temperature'] ) ) {
 			$t                     = (float) $input['ai_temperature'];

@@ -10,6 +10,10 @@ declare(strict_types=1);
 namespace KHSEO\Core;
 
 use KHSEO\Admin\AdminModule;
+use KHSEO\Audit\AuditModule;
+use KHSEO\Audit\AuditRunner;
+use KHSEO\Findings\FindingRepository;
+use KHSEO\Fixes\FixService;
 use KHSEO\API\RestModule;
 use KHSEO\Http\FetchPolicy;
 use KHSEO\Http\SafeFetcher;
@@ -90,7 +94,7 @@ final class Plugin {
 		 *
 		 * @param array<int, Module> $modules Modules to boot.
 		 */
-		$modules = apply_filters( 'khseo_modules', array( new SettingsModule(), new AdminModule(), new RestModule() ) );
+		$modules = apply_filters( 'khseo_modules', array( new SettingsModule(), new AuditModule(), new AdminModule(), new RestModule() ) );
 		foreach ( $modules as $module ) {
 			if ( $module instanceof Module && $module->isAvailable() ) {
 				$module->register( $this->container );
@@ -115,6 +119,9 @@ final class Plugin {
 		$c->set( Redactor::class, static fn (): Redactor => new Redactor() );
 		// Null when the site has no safe key material; callers must handle that (no fatal errors).
 		$c->set( SecretStore::class, static fn (): ?SecretStore => SecretStore::forSite() );
+		$c->set( FindingRepository::class, static fn (): FindingRepository => new FindingRepository() );
+		$c->set( AuditRunner::class, static fn ( Container $c ): AuditRunner => new AuditRunner( $c->get( RuleRegistry::class ), $c->get( FindingRepository::class ), $c->get( 'settings' ) ) );
+		$c->set( FixService::class, static fn ( Container $c ): FixService => new FixService( $c->get( RuleRegistry::class ), (bool) $c->get( 'settings' )['safe_auto_fixes'] ) );
 		$c->set( SafeFetcher::class, static fn (): SafeFetcher => new SafeFetcher( new UrlGuard(), new WpHttpTransport(), new FetchPolicy() ) );
 		$c->set(
 			Logger::class,

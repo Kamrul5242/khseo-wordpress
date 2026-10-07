@@ -105,6 +105,8 @@ final class Logger {
 		// Cut first so huge inputs never reach the regex engine.
 		$cut  = strlen( $text ) > self::MAX_MESSAGE * 4;
 		$text = substr( $text, 0, self::MAX_MESSAGE * 4 );
+		// Terminal escape sequences (colours, cursor moves, OSC titles/links) are removed whole.
+		$text = (string) preg_replace( array( '/\x1B\[[0-?]*[ -\/]*[@-~]/', '/\x1B\][^\x07\x1B]*(?:\x07|\x1B\\\\)?/' ), '', $text );
 		$text = (string) preg_replace( '/[\x00-\x1F\x7F]+/', ' ', $text );
 		$text = trim( (string) preg_replace( '/<[^>]*>/', '', $text ) );
 		if ( $cut || mb_strlen( $text ) > self::MAX_MESSAGE ) {

@@ -45,6 +45,11 @@ final class SafeFetcher {
 			if ( ! $check->allowed ) {
 				return FetchResult::fail( 'Blocked: ' . $check->reason, $url, $chain );
 			}
+			// After the full guard check: refuse an HTTPS -> HTTP downgrade on a redirect hop.
+			$previous = end( $chain );
+			if ( false !== $previous && ! $this->policy->allow_downgrade && str_starts_with( strtolower( $previous ), 'https:' ) && str_starts_with( strtolower( $url ), 'http:' ) ) {
+				return FetchResult::fail( 'Refused redirect from HTTPS to plain HTTP.', $url, $chain );
+			}
 			$chain[]  = $url;
 			$response = $this->transport->get( $url, $check->ips[0], $check->port, $this->policy );
 			if ( '' !== $response->error ) {
@@ -76,7 +81,11 @@ final class SafeFetcher {
 	}
 
 	/**
-	 * Resolve a Location header against the current URL.
+	 * Resolve a Location header against the current URL (RFC 3986 section 5.2).
+	 *
+	 * Handles absolute, protocol-relative, absolute-path, relative-path ("../", "./"),
+	 * query-only and fragment-only references. Fragments are dropped (never sent).
+	 * The result is NOT trusted: SafeFetcher passes it back through the full UrlGuard.
 	 *
 	 * @param string $base     Current absolute URL.
 	 * @param string $location Location header value.
@@ -87,24 +96,79 @@ final class SafeFetcher {
 		if ( '' === $location || strlen( $location ) > 2048 || preg_match( '/[\x00-\x1F\x7F]/', $location ) ) {
 			return null;
 		}
-		if ( preg_match( '#^[a-z][a-z0-9+.-]*:#i', $location ) ) {
-			return $location; // Absolute (any scheme; the guard rejects non-http(s)).
-		}
-		$b = parse_url( $base ); // phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- pure class, runs without WordPress.
+		$location = explode( '#', $location, 2 )[0];
+		$b        = parse_url( $base ); // phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- pure class, runs without WordPress.
 		if ( false === $b || ! isset( $b['scheme'], $b['host'] ) ) {
 			return null;
 		}
-		$host = str_contains( $b['host'], ':' ) && ! str_starts_with( $b['host'], '[' ) ? '[' . $b['host'] . ']' : $b['host'];
-		$auth = $b['scheme'] . '://' . $host . ( isset( $b['port'] ) ? ':' . $b['port'] : '' );
+		if ( preg_match( '#^[a-z][a-z0-9+.-]*:#i', $location ) ) {
+			$r = parse_url( $location ); // phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- pure class.
+			if ( false === $r || ! isset( $r['scheme'] ) ) {
+				return null;
+			}
+			// Never rebuild a URL that carries credentials: return it as-is so the guard refuses it.
+			if ( ! isset( $r['host'] ) || isset( $r['user'] ) || isset( $r['pass'] ) ) {
+				return $location; // e.g. javascript:, data: — the guard rejects the scheme.
+			}
+			return self::build( $r, self::removeDotSegments( $r['path'] ?? '/' ) );
+		}
 		if ( str_starts_with( $location, '//' ) ) {
-			return $b['scheme'] . ':' . $location;
+			return self::resolve( $base, $b['scheme'] . ':' . $location );
 		}
-		if ( str_starts_with( $location, '/' ) ) {
-			return $auth . $location;
+		$base_path = $b['path'] ?? '/';
+		if ( '' === $location ) {
+			$path  = $base_path;
+			$query = $b['query'] ?? null;
+		} elseif ( str_starts_with( $location, '?' ) ) {
+			$path  = $base_path;
+			$query = substr( $location, 1 );
+		} else {
+			[ $rel_path, $query ] = array_pad( explode( '?', $location, 2 ), 2, null );
+			$rel_path             = (string) $rel_path;
+			$path                 = str_starts_with( $rel_path, '/' )
+				? $rel_path
+				: substr( $base_path, 0, (int) strrpos( $base_path, '/' ) + 1 ) . $rel_path;
 		}
-		$path = $b['path'] ?? '/';
-		$dir  = substr( $path, 0, (int) strrpos( $path, '/' ) + 1 );
-		return $auth . ( '' === $dir ? '/' : $dir ) . $location;
+		$parts          = $b;
+		$parts['query'] = $query;
+		return self::build( $parts, self::removeDotSegments( '' === $path ? '/' : $path ) );
+	}
+
+	/**
+	 * RFC 3986 5.2.4 remove_dot_segments. Percent-encoded dots are NOT decoded (they are not dot segments).
+	 *
+	 * @param string $path Path.
+	 */
+	public static function removeDotSegments( string $path ): string {
+		$out = array();
+		foreach ( explode( '/', $path ) as $i => $segment ) {
+			if ( '..' === $segment ) {
+				if ( count( $out ) > 1 ) {
+					array_pop( $out );
+				}
+			} elseif ( '.' !== $segment || 0 === $i ) {
+				$out[] = $segment;
+			}
+		}
+		$last = substr( $path, -3 );
+		if ( '/..' === $last || '/.' === substr( $path, -2 ) ) {
+			$out[] = '';
+		}
+		$result = implode( '/', $out );
+		return str_starts_with( $result, '/' ) ? $result : '/' . $result;
+	}
+
+	/**
+	 * Rebuild an absolute URL from parse_url() parts with a given path.
+	 *
+	 * @param array<string, mixed> $p    Parts (scheme, host, optional port and query).
+	 * @param string               $path Normalised path.
+	 */
+	private static function build( array $p, string $path ): string {
+		$host = (string) $p['host'];
+		$host = str_contains( $host, ':' ) && ! str_starts_with( $host, '[' ) ? '[' . $host . ']' : $host;
+		$url  = strtolower( (string) $p['scheme'] ) . '://' . $host . ( isset( $p['port'] ) ? ':' . (int) $p['port'] : '' ) . $path;
+		return isset( $p['query'] ) ? $url . '?' . $p['query'] : $url;
 	}
 
 	/**

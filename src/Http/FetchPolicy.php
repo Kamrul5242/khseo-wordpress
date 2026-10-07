@@ -24,6 +24,7 @@ final class FetchPolicy {
 	 * @param int                $max_redirects    Redirect hops followed (each one re-validated).
 	 * @param array<int, string> $allowed_types    Allowed Content-Type media types.
 	 * @param string             $user_agent       User-Agent sent.
+	 * @param bool               $allow_downgrade  Follow HTTPS -> HTTP redirects (off: refused).
 	 */
 	public function __construct(
 		public readonly int $connect_timeout = 5,
@@ -32,7 +33,8 @@ final class FetchPolicy {
 		public readonly int $max_decoded = 5_000_000,
 		public readonly int $max_redirects = 3,
 		public readonly array $allowed_types = array( 'text/html', 'application/xhtml+xml', 'text/plain', 'application/xml', 'text/xml', 'application/json', 'application/ld+json' ),
-		public readonly string $user_agent = 'KHSEO/1 (+https://github.com/Kamrul5242/khseo-wordpress)'
+		public readonly string $user_agent = 'KHSEO/1 (+https://github.com/Kamrul5242/khseo-wordpress)',
+		public readonly bool $allow_downgrade = false
 	) {}
 
 	/**

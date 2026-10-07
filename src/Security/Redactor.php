@@ -35,6 +35,7 @@ final class Redactor {
 		'/(?i)(bearer\s+)[A-Za-z0-9_\-\.=+\/]{8,}/',
 		'/(?i)((?:authorization|cookie|set-cookie)\s*:\s*)[^\r\n]+/',
 		'/(?i)((?:api[_-]?key|password|passwd|secret|token)\s*[=:]\s*)[^\s&"\']+/',
+		'/(?i)([?&](?:access_token|refresh_token|id_token|token|api_?key|key|password|pass|secret|client_secret|signature|sig|auth|code|session)=)[^&#\s"\']+/',
 	);
 
 	/**

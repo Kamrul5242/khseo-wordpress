@@ -10,32 +10,36 @@ implementation of **[KHSEO](https://github.com/Kamrul5242/khseo)**, a universal
 SEO specification. This repository follows KHSEO's principles but does not
 depend on it at runtime.
 
-> **Status: v0.1.1, foundation release (Phase 1 of 9).** The architecture,
-> security layer (SSRF-safe fetcher, encrypted secrets, redaction), settings,
-> capabilities, change gate, admin shell and REST status endpoint exist and are
-> tested ([quality report](docs/QUALITY.md)). **It is not an SEO suite yet.** The SEO engines arrive in later phases; see the
-> [roadmap](docs/ARCHITECTURE.md#10-implementation-roadmap). Nothing below is
-> described as working unless it is built.
+> **Status: v0.2.0 — Phase 2 of 9.** KHSEO audits your site's own pages: technical SEO,
+> metadata, links, images, social tags and JSON-LD. It lists issues with evidence and gives
+> a KHSEO Score that states exactly which URLs it covers. It is **not a complete SEO
+> suite yet**: see "What does not work yet" and the [quality report](docs/QUALITY.md).
 
-## What works today (v0.1.1)
+## What works today (v0.2.0)
 
 | Area | What you get |
 |---|---|
-| Overview screen | Real site-level checks: **search-engine visibility** (Settings → Reading) and **HTTPS**, each labelled `VERIFIED` with its source. Things not yet measured are labelled `NOT TESTED` or `UNKNOWN`. Nothing is invented. |
-| Settings | Mode with other SEO plugins (Advisory by default), automation switches (all off), logging, uninstall behaviour, optional AI settings. |
-| AI key storage | Encrypted with libsodium. Shown only as `••••last4`. Never logged, exported, or sent to the browser. |
-| REST API | `GET /wp-json/khseo/v1/status`, requires the `view_khseo` capability. |
-| Capabilities | 8 KHSEO capabilities. Administrators get all of them; editors get view-only. |
-| Rules | A central rule registry (`config/rules.php`): one record per check, with severity, evidence, risk and reversibility. |
-| Safe Fetcher | The only path for future outbound requests. Pins the connection to the validated IP, re-checks every redirect, and limits time, size, content type and decompression. No feature uses it yet. |
-| Change gate | Enforces R0–R4: R1 only with automation on or approval; R2 needs approval of that exact change; R3 needs a recovery point; R4 needs a verified one. No feature applies changes yet. |
+| Audit | Scope: the homepage, one URL on this site, or a sample of sitemap URLs (limits in Settings). Runs in bounded batches from the dashboard (works without JavaScript) or WP-Cron, and can be cancelled. Fetches **only this site**. |
+| Technical SEO | HTTP status, redirects, content type, HTTPS, robots meta / X-Robots-Tag, robots.txt (RFC 9309 semantics), XML sitemaps, canonicals, `lang`, charset. |
+| Metadata and content | Titles and meta descriptions (missing, multiple, length in characters, markup, duplicates within the audit), H1 and heading order, image alt and dimensions, link text, internal links, broken links (only targets fetched in this audit). |
+| Social and structured data | Open Graph and Twitter/X cards. JSON-LD validity, `@context`/`@type`, required properties for 12 common types, conflicting `@id`, url/sameAs. Inferred visible-content checks. Google Rich Results Test is **NOT TESTED**. |
+| Issues | Every finding shows what was checked, what was observed, the evidence label, the source and the recommendation. Filters, pagination, and an "Ignore" action that survives re-audits. |
+| KHSEO Score | Deterministic, documented formula ([ARCHITECTURE §8](docs/ARCHITECTURE.md#8-khseo-score)). It is an internal diagnostic score, **not a Google ranking score**, and covers the analysed scope only. |
+| Safe fixes | One governed fix: search-engine visibility (SEO-INDEX-001, R3). It goes preview → approve this exact change → recovery point → change gate → apply → validate, with rollback (blocked if the value changed since). |
+| REST API | `/khseo/v1/status`, `/audit` (+ `/step`, `/cancel`), `/issues` (+ `/{id}`, `/{id}/status`), `/fixes/preview`, `/approve`, `/apply`, `/rollback`. Each route has its own capability check; nothing is public. |
+| Security foundation | SSRF-safe fetcher with IP pinning, encrypted secrets, redacted bounded logs, 8 capabilities (editors view-only), and an R0–R4 change gate. |
 
 ## What does not work yet
 
-There are no page audits, metadata, schema, sitemap, robots, content or link analysis, KHSEO Score, AEO/GEO, WooCommerce, Gig SEO, AI features, or Google integrations. Each is listed as PLANNED in the [roadmap](docs/ARCHITECTURE.md#10-implementation-roadmap).
+- No metadata output: KHSEO does not write titles, descriptions, canonicals, OG or schema.
+- No content analysis (topics, readability), AEO/GEO/LLM readability, E-E-A-T, local SEO,
+  WooCommerce, Gig SEO, AI features, Search Console/GA4, WP-CLI or SEO Guard.
+- No JavaScript rendering: pages are analysed as served.
+- No Google data of any kind.
 
-**No AI API is needed.** AI is an optional layer (Phase 6); in v0.1.x nothing
-is ever sent to an AI provider.
+Each item is PLANNED in the [roadmap](docs/ARCHITECTURE.md#11-implementation-roadmap).
+
+**No AI API is needed.** Everything above works without one; AI stays optional (Phase 6).
 
 ## Principles (from KHSEO)
 

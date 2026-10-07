@@ -44,6 +44,7 @@ final class Activator {
 	 */
 	public static function deactivate(): void {
 		wp_clear_scheduled_hook( 'khseo_daily_health' );
+		wp_clear_scheduled_hook( 'khseo_audit_step' );
 	}
 
 	/**

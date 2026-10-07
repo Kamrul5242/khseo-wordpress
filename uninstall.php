@@ -22,10 +22,12 @@ $khseo_uninstall_site = static function (): void {
 	if ( true !== $settings['delete_data_on_uninstall'] ) {
 		return;
 	}
-	foreach ( array( 'khseo_settings', 'khseo_secrets', 'khseo_log', 'khseo_db_version' ) as $option ) {
+	foreach ( array( 'khseo_settings', 'khseo_secrets', 'khseo_log', 'khseo_db_version', 'khseo_audit_job', 'khseo_last_audit', 'khseo_audit_lock', 'khseo_fix_approvals', 'khseo_change_journal' ) as $option ) {
 		delete_option( $option );
 	}
 	KHSEO\Security\Capabilities::revokeAll();
+	KHSEO\Findings\FindingRepository::uninstall();
+	wp_clear_scheduled_hook( 'khseo_audit_step' );
 };
 
 if ( is_multisite() ) {
