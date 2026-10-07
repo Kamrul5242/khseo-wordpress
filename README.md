@@ -10,13 +10,14 @@ implementation of **[KHSEO](https://github.com/Kamrul5242/khseo)**, a universal
 SEO specification. This repository follows KHSEO's principles but does not
 depend on it at runtime.
 
-> **Status: v0.1.0, foundation release (Phase 1 of 9).** The architecture,
-> security layer, settings, capabilities, admin shell and REST status endpoint
-> exist and are tested. The SEO engines arrive in later phases; see the
-> [roadmap](docs/ARCHITECTURE.md#9-implementation-roadmap). Nothing below is
+> **Status: v0.1.1, foundation release (Phase 1 of 9).** The architecture,
+> security layer (SSRF-safe fetcher, encrypted secrets, redaction), settings,
+> capabilities, change gate, admin shell and REST status endpoint exist and are
+> tested ([quality report](docs/QUALITY.md)). **It is not an SEO suite yet.** The SEO engines arrive in later phases; see the
+> [roadmap](docs/ARCHITECTURE.md#10-implementation-roadmap). Nothing below is
 > described as working unless it is built.
 
-## What works today (v0.1.0)
+## What works today (v0.1.1)
 
 | Area | What you get |
 |---|---|
@@ -26,8 +27,14 @@ depend on it at runtime.
 | REST API | `GET /wp-json/khseo/v1/status`, requires the `view_khseo` capability. |
 | Capabilities | 8 KHSEO capabilities. Administrators get all of them; editors get view-only. |
 | Rules | A central rule registry (`config/rules.php`): one record per check, with severity, evidence, risk and reversibility. |
+| Safe Fetcher | The only path for future outbound requests. Pins the connection to the validated IP, re-checks every redirect, and limits time, size, content type and decompression. No feature uses it yet. |
+| Change gate | Enforces R0–R4: R1 only with automation on or approval; R2 needs approval of that exact change; R3 needs a recovery point; R4 needs a verified one. No feature applies changes yet. |
 
-**No AI API is needed.** AI is an optional layer (Phase 6); in v0.1.0 nothing
+## What does not work yet
+
+There are no page audits, metadata, schema, sitemap, robots, content or link analysis, KHSEO Score, AEO/GEO, WooCommerce, Gig SEO, AI features, or Google integrations. Each is listed as PLANNED in the [roadmap](docs/ARCHITECTURE.md#10-implementation-roadmap).
+
+**No AI API is needed.** AI is an optional layer (Phase 6); in v0.1.x nothing
 is ever sent to an AI provider.
 
 ## Principles (from KHSEO)
@@ -75,6 +82,7 @@ The local site is at <http://localhost:8089> (test-only admin: `admin` /
 ## Documentation
 
 - [Architecture, security model, capability model, roadmap](docs/ARCHITECTURE.md)
+- [Quality report: what was actually tested](docs/QUALITY.md)
 - [Security policy](SECURITY.md) · [Privacy](PRIVACY.md) · [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
 
 ## License

@@ -2,7 +2,7 @@
 
 KHSEO collects the minimum data needed and has **no telemetry**.
 
-## What version 0.1.0 stores
+## What version 0.1.x stores
 
 | Data | Where | Why |
 |---|---|---|
@@ -10,9 +10,10 @@ KHSEO collects the minimum data needed and has **no telemetry**.
 | Optional AI API key | `wp_options` → `khseo_secrets` (encrypted) | Future AI features |
 | Log entries | `wp_options` → `khseo_log` (capped at 200 entries and your retention setting, 14 days by default) | Troubleshooting and security events; secrets are redacted |
 
-## What version 0.1.0 sends anywhere
+## What version 0.1.x sends anywhere
 
-**Nothing.** Version 0.1.0 makes no external requests.
+**Nothing.** No KHSEO feature makes external requests. The Safe Fetcher exists
+for future features, but nothing in the plugin calls it yet.
 
 ## Future optional features
 

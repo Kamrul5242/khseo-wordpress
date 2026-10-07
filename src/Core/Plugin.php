@@ -11,9 +11,13 @@ namespace KHSEO\Core;
 
 use KHSEO\Admin\AdminModule;
 use KHSEO\API\RestModule;
+use KHSEO\Http\FetchPolicy;
+use KHSEO\Http\SafeFetcher;
+use KHSEO\Http\WpHttpTransport;
 use KHSEO\Rules\RuleRegistry;
 use KHSEO\Security\Redactor;
 use KHSEO\Security\SecretStore;
+use KHSEO\Security\UrlGuard;
 use KHSEO\Settings\Settings;
 use KHSEO\Settings\SettingsModule;
 use KHSEO\Support\Logger;
@@ -109,7 +113,9 @@ final class Plugin {
 		$c->set( 'settings', static fn (): array => Settings::normalize( get_option( Settings::OPTION, array() ) ) );
 		$c->set( RuleRegistry::class, static fn (): RuleRegistry => RuleRegistry::fromFile( KHSEO_DIR . 'config/rules.php' ) );
 		$c->set( Redactor::class, static fn (): Redactor => new Redactor() );
-		$c->set( SecretStore::class, static fn (): SecretStore => new SecretStore( SecretStore::siteKeyMaterial() ) );
+		// Null when the site has no safe key material; callers must handle that (no fatal errors).
+		$c->set( SecretStore::class, static fn (): ?SecretStore => SecretStore::forSite() );
+		$c->set( SafeFetcher::class, static fn (): SafeFetcher => new SafeFetcher( new UrlGuard(), new WpHttpTransport(), new FetchPolicy() ) );
 		$c->set(
 			Logger::class,
 			static function ( Container $c ): Logger {

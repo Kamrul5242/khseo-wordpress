@@ -106,12 +106,26 @@ final class UrlGuard {
 			return UrlCheck::deny( 'Port ' . $port . ' is not allowed.' );
 		}
 
-		$host = strtolower( trim( $parts['host'], '[]' ) );
+		$is_ip_literal = str_starts_with( $parts['host'], '[' );
+		// A trailing dot ("localhost.") is the same name; strip it before any comparison.
+		$host = rtrim( strtolower( trim( $parts['host'], '[]' ) ), '.' );
+		if ( '' === $host ) {
+			return UrlCheck::deny( 'URL has an empty host.' );
+		}
+		if ( ! $is_ip_literal && ! preg_match( '/^[a-z0-9.-]+$/', $host ) ) {
+			return UrlCheck::deny( 'Host name contains characters that are not allowed (use punycode for international names).' );
+		}
 		if ( 'localhost' === $host || str_ends_with( $host, '.localhost' ) || str_ends_with( $host, '.local' ) || str_ends_with( $host, '.internal' ) ) {
 			return UrlCheck::deny( 'Local host names are not allowed.' );
 		}
+		$is_ip = false !== filter_var( $host, FILTER_VALIDATE_IP );
+		// Decimal, hex, octal or shortened IPv4 ("2130706433", "0x7f.1", "127.1") are read as
+		// addresses by curl and browsers but are not canonical IPs: refuse them outright.
+		if ( ! $is_ip && preg_match( '/^(0x[0-9a-f]+|[0-9]+)(\.(0x[0-9a-f]+|[0-9]+))*$/', $host ) ) {
+			return UrlCheck::deny( 'Numeric host is not a standard IP address.' );
+		}
 
-		$ips = filter_var( $host, FILTER_VALIDATE_IP ) ? array( $host ) : ( $this->resolver )( $host );
+		$ips = $is_ip ? array( $host ) : ( $this->resolver )( $host );
 		if ( array() === $ips ) {
 			return UrlCheck::deny( 'Host did not resolve.' );
 		}

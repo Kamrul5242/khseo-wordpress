@@ -29,7 +29,12 @@ $khseo_uninstall_site = static function (): void {
 };
 
 if ( is_multisite() ) {
-	foreach ( get_sites( array( 'fields' => 'ids' ) ) as $khseo_site_id ) {
+	foreach ( get_sites(
+		array(
+			'fields' => 'ids',
+			'number' => 0,
+		)
+	) as $khseo_site_id ) {
 		switch_to_blog( (int) $khseo_site_id );
 		$khseo_uninstall_site();
 		restore_current_blog();

@@ -6,6 +6,7 @@
  * @var array<string, mixed> $settings
  * @var string               $ai_key_mask
  * @var bool                 $can_manage_ai
+ * @var bool                 $can_encrypt
  */
 
 declare(strict_types=1);
@@ -19,9 +20,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 $khseo_opt     = Settings::OPTION;
 $khseo_key_msg = array(
-	'saved'   => __( 'API key saved (encrypted).', 'khseo' ),
-	'removed' => __( 'API key removed.', 'khseo' ),
-	'invalid' => __( 'That API key was not saved: it is too long or contains spaces or control characters.', 'khseo' ),
+	'saved'         => __( 'API key saved (encrypted).', 'khseo' ),
+	'removed'       => __( 'API key removed.', 'khseo' ),
+	'invalid'       => __( 'That API key was not saved: it is too long or contains spaces or control characters.', 'khseo' ),
+	'no_encryption' => __( 'That API key was not saved: this site has no safe encryption key. Add a KHSEO_SECRET_KEY constant (a long random string) to wp-config.php.', 'khseo' ),
 );
 // Display-only flag set by our own redirect; compared against a fixed list.
 $khseo_key_status = isset( $_GET['khseo_key'] ) ? sanitize_key( wp_unslash( $_GET['khseo_key'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only notice.
@@ -65,7 +67,7 @@ $khseo_select = static function ( string $name, string $value, array $options ) 
 	<?php settings_errors(); ?>
 
 	<?php if ( isset( $khseo_key_msg[ $khseo_key_status ] ) ) : ?>
-		<div class="notice <?php echo 'invalid' === $khseo_key_status ? 'notice-error' : 'notice-success'; ?>" role="status"><p><?php echo esc_html( $khseo_key_msg[ $khseo_key_status ] ); ?></p></div>
+		<div class="notice <?php echo in_array( $khseo_key_status, array( 'invalid', 'no_encryption' ), true ) ? 'notice-error' : 'notice-success'; ?>" role="status"><p><?php echo esc_html( $khseo_key_msg[ $khseo_key_status ] ); ?></p></div>
 	<?php endif; ?>
 
 	<form method="post" action="options.php">
@@ -134,6 +136,9 @@ $khseo_select = static function ( string $name, string $value, array $options ) 
 
 	<?php if ( $can_manage_ai ) : ?>
 		<h2><?php esc_html_e( 'AI API key', 'khseo' ); ?></h2>
+		<?php if ( ! $can_encrypt ) : ?>
+			<div class="notice notice-warning inline"><p><?php esc_html_e( 'Encryption is unavailable on this site, so API keys cannot be saved. Add a KHSEO_SECRET_KEY constant (a long random string) to wp-config.php.', 'khseo' ); ?></p></div>
+		<?php endif; ?>
 		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 			<input type="hidden" name="action" value="<?php echo esc_attr( AdminModule::SECRET_ACTION ); ?>">
 			<?php wp_nonce_field( AdminModule::SECRET_ACTION ); ?>

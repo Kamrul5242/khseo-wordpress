@@ -21,6 +21,17 @@ final class SecretStore {
 
 	private const PREFIX = 'khseo1:';
 
+	public const SOURCE_CONSTANT = 'KHSEO_SECRET_KEY';
+	public const SOURCE_SALTS    = 'wp-config salts';
+	public const SOURCE_DATABASE = 'database salt';
+
+	/**
+	 * Placeholder that WordPress ships in wp-config-sample.php. A key built from it is public.
+	 */
+	private const SALT_PLACEHOLDER = 'put your unique phrase here';
+
+	private const MIN_MATERIAL = 32;
+
 	/**
 	 * 32-byte encryption key.
 	 *
@@ -31,30 +42,84 @@ final class SecretStore {
 	/**
 	 * Constructor.
 	 *
-	 * @param string $key_material Any secret string (KHSEO_SECRET_KEY or WordPress salts).
+	 * @param string $key_material Secret string of at least 32 bytes.
 	 * @throws RuntimeException When the key material is too short.
 	 */
 	public function __construct( string $key_material ) {
-		if ( strlen( $key_material ) < 16 ) {
+		if ( strlen( $key_material ) < self::MIN_MATERIAL ) {
 			throw new RuntimeException( 'Secret key material is too short.' );
 		}
 		$this->key = sodium_crypto_generichash( $key_material, 'khseo-secret-store', SODIUM_CRYPTO_SECRETBOX_KEYBYTES );
 	}
 
 	/**
-	 * Key material for this site: KHSEO_SECRET_KEY if defined, else WordPress salts.
+	 * Store for this site, or null when no safe key material exists (never throws).
 	 */
-	public static function siteKeyMaterial(): string {
-		if ( defined( 'KHSEO_SECRET_KEY' ) && is_string( KHSEO_SECRET_KEY ) && '' !== KHSEO_SECRET_KEY ) {
-			return KHSEO_SECRET_KEY;
+	public static function forSite(): ?self {
+		$material = self::siteKeyMaterial();
+		if ( null === $material ) {
+			return null;
 		}
-		$material = '';
-		foreach ( array( 'AUTH_KEY', 'SECURE_AUTH_KEY', 'LOGGED_IN_KEY', 'NONCE_KEY' ) as $const ) {
-			if ( defined( $const ) ) {
-				$material .= (string) constant( $const );
+		try {
+			return new self( $material['material'] );
+		} catch ( RuntimeException $e ) {
+			return null;
+		}
+	}
+
+	/**
+	 * Key material for this site with its source label.
+	 *
+	 * @return array{material: string, source: string}|null
+	 */
+	public static function siteKeyMaterial(): ?array {
+		$constants = array();
+		foreach ( array( 'KHSEO_SECRET_KEY', 'AUTH_KEY', 'SECURE_AUTH_KEY', 'LOGGED_IN_KEY', 'NONCE_KEY' ) as $name ) {
+			if ( defined( $name ) ) {
+				$constants[ $name ] = (string) constant( $name );
 			}
 		}
-		return $material;
+		$db_salt = function_exists( 'wp_salt' ) ? (string) wp_salt( 'auth' ) : '';
+		return self::keyMaterialFrom( $constants, $db_salt );
+	}
+
+	/**
+	 * Choose key material (pure, testable).
+	 *
+	 * Order: KHSEO_SECRET_KEY → wp-config salts (placeholders ignored) → WordPress's database salt.
+	 *
+	 * @param array<string, string> $constants Defined constants by name.
+	 * @param string                $db_salt   wp_salt('auth') value, '' if unavailable.
+	 * @return array{material: string, source: string}|null
+	 */
+	public static function keyMaterialFrom( array $constants, string $db_salt ): ?array {
+		$own = $constants['KHSEO_SECRET_KEY'] ?? '';
+		if ( strlen( $own ) >= self::MIN_MATERIAL ) {
+			return array(
+				'material' => $own,
+				'source'   => self::SOURCE_CONSTANT,
+			);
+		}
+		$salts = '';
+		foreach ( array( 'AUTH_KEY', 'SECURE_AUTH_KEY', 'LOGGED_IN_KEY', 'NONCE_KEY' ) as $name ) {
+			$value = $constants[ $name ] ?? '';
+			if ( strlen( $value ) >= 16 && self::SALT_PLACEHOLDER !== $value ) {
+				$salts .= $value;
+			}
+		}
+		if ( strlen( $salts ) >= self::MIN_MATERIAL ) {
+			return array(
+				'material' => $salts,
+				'source'   => self::SOURCE_SALTS,
+			);
+		}
+		if ( strlen( $db_salt ) >= self::MIN_MATERIAL && ! str_contains( $db_salt, self::SALT_PLACEHOLDER ) ) {
+			return array(
+				'material' => $db_salt,
+				'source'   => self::SOURCE_DATABASE,
+			);
+		}
+		return null;
 	}
 
 	/**
@@ -72,24 +137,32 @@ final class SecretStore {
 	}
 
 	/**
-	 * Decrypt a stored secret. Returns null if it was tampered with or the key changed.
+	 * Decrypt a stored secret. Returns null if it was tampered with, the key changed,
+	 * or the value is not KHSEO ciphertext (never throws).
 	 *
-	 * @param string $stored Value produced by encrypt().
+	 * @param mixed $stored Value produced by encrypt() (untrusted: read from the database).
 	 */
-	public function decrypt( string $stored ): ?string {
+	public function decrypt( mixed $stored ): ?string {
+		if ( ! is_string( $stored ) ) {
+			return null;
+		}
 		if ( '' === $stored ) {
 			return '';
 		}
-		if ( ! str_starts_with( $stored, self::PREFIX ) ) {
+		if ( ! str_starts_with( $stored, self::PREFIX ) || strlen( $stored ) > 8192 ) {
 			return null;
 		}
 		$raw = base64_decode( substr( $stored, strlen( self::PREFIX ) ), true ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- see encrypt().
-		if ( false === $raw || strlen( $raw ) <= SODIUM_CRYPTO_SECRETBOX_NONCEBYTES ) {
+		if ( false === $raw || strlen( $raw ) < SODIUM_CRYPTO_SECRETBOX_NONCEBYTES + SODIUM_CRYPTO_SECRETBOX_MACBYTES ) {
 			return null;
 		}
 		$nonce  = substr( $raw, 0, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES );
 		$cipher = substr( $raw, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES );
-		$plain  = sodium_crypto_secretbox_open( $cipher, $nonce, $this->key );
+		try {
+			$plain = sodium_crypto_secretbox_open( $cipher, $nonce, $this->key );
+		} catch ( \SodiumException $e ) {
+			return null;
+		}
 		return false === $plain ? null : $plain;
 	}
 

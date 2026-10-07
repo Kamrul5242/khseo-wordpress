@@ -3,7 +3,7 @@
  * Plugin Name:       KHSEO
  * Plugin URI:        https://github.com/Kamrul5242/khseo-wordpress
  * Description:       Evidence-first, security-first SEO platform for WordPress. Works fully without an AI API; AI is an optional layer.
- * Version:           0.1.0
+ * Version:           0.1.1
  * Requires at least: 6.4
  * Requires PHP:      8.1
  * Author:            Kamrul Hasan
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KHSEO_VERSION', '0.1.0' );
+define( 'KHSEO_VERSION', '0.1.1' );
 define( 'KHSEO_FILE', __FILE__ );
 define( 'KHSEO_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHSEO_URL', plugin_dir_url( __FILE__ ) );

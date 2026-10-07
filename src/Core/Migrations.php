@@ -9,6 +9,8 @@ declare(strict_types=1);
 
 namespace KHSEO\Core;
 
+use KHSEO\Security\Capabilities;
+
 /**
  * Runs each migration step once per site, tracked by khseo_db_version.
  * Phase 1 needs no custom tables; later phases append steps that use dbDelta().
@@ -16,7 +18,7 @@ namespace KHSEO\Core;
 final class Migrations {
 
 	public const OPTION     = 'khseo_db_version';
-	public const DB_VERSION = 1;
+	public const DB_VERSION = 2;
 
 	/**
 	 * Run pending migrations if the stored version is behind.
@@ -41,5 +43,15 @@ final class Migrations {
 	 */
 	private static function migrate1(): void {
 		add_option( 'khseo_log', array(), '', false );
+	}
+
+	/**
+	 * Version 2: grant default capabilities on this site.
+	 *
+	 * Covers sites created after network activation (activation never ran there)
+	 * and runs once per site; existing role customisations are only ever added to.
+	 */
+	private static function migrate2(): void {
+		Capabilities::grantDefaults();
 	}
 }

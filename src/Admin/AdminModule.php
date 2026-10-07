@@ -114,12 +114,13 @@ final class AdminModule implements Module {
 		if ( ! current_user_can( Capabilities::SETTINGS ) ) {
 			wp_die( esc_html__( 'You do not have permission to change KHSEO settings.', 'khseo' ), 403 );
 		}
+		$store   = $this->container->get( SecretStore::class );
 		$secrets = get_option( 'khseo_secrets', array() );
-		$stored  = is_array( $secrets ) ? (string) ( $secrets['ai_api_key'] ?? '' ) : '';
+		$stored  = is_array( $secrets ) ? ( $secrets['ai_api_key'] ?? '' ) : '';
 		$mask    = '';
 		if ( '' !== $stored ) {
-			$plain = $this->container->get( SecretStore::class )->decrypt( $stored );
-			$mask  = null === $plain ? __( 'Saved key cannot be decrypted (site keys changed). Enter it again.', 'khseo' ) : SecretStore::mask( $plain );
+			$plain = null === $store ? null : $store->decrypt( $stored );
+			$mask  = null === $plain ? __( 'A saved key exists but cannot be decrypted (site keys changed or encryption unavailable). Enter it again.', 'khseo' ) : SecretStore::mask( $plain );
 		}
 		View::render(
 			'settings',
@@ -127,6 +128,7 @@ final class AdminModule implements Module {
 				'settings'      => Settings::normalize( get_option( Settings::OPTION, array() ) ),
 				'ai_key_mask'   => $mask,
 				'can_manage_ai' => current_user_can( Capabilities::AI ),
+				'can_encrypt'   => null !== $store,
 			)
 		);
 	}
@@ -151,10 +153,14 @@ final class AdminModule implements Module {
 			// Not sanitize_text_field(): keys may contain characters it would strip. Only trim and length-limit.
 			$key = isset( $_POST['khseo_ai_api_key'] ) ? trim( (string) wp_unslash( $_POST['khseo_ai_api_key'] ) ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- validated below, encrypted, never output.
 			if ( '' !== $key ) {
+				$store = $this->container->get( SecretStore::class );
 				if ( strlen( $key ) > 512 || preg_match( '/[\x00-\x20\x7f]/', $key ) ) {
 					$status = 'invalid';
+				} elseif ( null === $store ) {
+					// Never store a key we cannot encrypt.
+					$status = 'no_encryption';
 				} else {
-					$secrets['ai_api_key'] = $this->container->get( SecretStore::class )->encrypt( $key );
+					$secrets['ai_api_key'] = $store->encrypt( $key );
 					$status                = 'saved';
 				}
 			}
